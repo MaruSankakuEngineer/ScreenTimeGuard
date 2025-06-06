@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/titleText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Screen Time Guard"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="32dp" />
+
+    <TextView
+        android:id="@+id/statusLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="状態："
+        android:textSize="18sp"
+        app:layout_constraintTop_toBottomOf="@id/titleText"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="32dp" />
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="停止中"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="@id/statusLabel"
+        app:layout_constraintStart_toEndOf="@id/statusLabel"
+        android:layout_marginStart="8dp" />
+
+    <Button
+        android:id="@+id/toggleButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="開始"
+        android:textSize="18sp"
+        app:layout_constraintTop_toBottomOf="@id/statusLabel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="32dp" />
+
+    <TextView
+        android:id="@+id/settingsTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="設定"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toBottomOf="@id/toggleButton"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="48dp" />
+
+    <LinearLayout
+        android:id="@+id/startTimeContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        app:layout_constraintTop_toBottomOf="@id/settingsTitle"
+        android:layout_marginTop="24dp">
+
+        <TextView
+            android:id="@+id/startTimeLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="監視開始時刻："
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/startTimeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="22:00"
+            android:drawableEnd="@android:drawable/ic_menu_my_calendar"
+            android:paddingEnd="8dp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/endTimeContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        app:layout_constraintTop_toBottomOf="@id/startTimeContainer"
+        android:layout_marginTop="16dp">
+
+        <TextView
+            android:id="@+id/endTimeLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="監視終了時刻："
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/endTimeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="06:00"
+            android:drawableEnd="@android:drawable/ic_menu_my_calendar"
+            android:paddingEnd="8dp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/thresholdLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="警告までの時間（分）："
+        android:textSize="16sp"
+        app:layout_constraintTop_toBottomOf="@id/endTimeContainer"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="24dp" />
+
+    <EditText
+        android:id="@+id/thresholdInput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="30"
+        android:inputType="number"
+        android:minWidth="80dp"
+        app:layout_constraintTop_toTopOf="@id/thresholdLabel"
+        app:layout_constraintStart_toEndOf="@id/thresholdLabel"
+        android:layout_marginStart="8dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout> 
