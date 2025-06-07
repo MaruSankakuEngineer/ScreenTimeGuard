@@ -32,6 +32,8 @@ class ScreenMonitorService : Service() {
         private const val TAG = "ScreenMonitorService"
         private const val WARNING_INTERVAL_MINUTES = 5 // 警告通知の間隔（分）
         private const val RESTART_ALARM_REQUEST_CODE = 1001
+        private const val MIN_RESTART_INTERVAL = 10 * 1000L // 最小再起動間隔（10秒）
+        private var lastRestartTime = 0L
     }
 
     override fun onCreate() {
@@ -43,6 +45,14 @@ class ScreenMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 前回の再起動から最小間隔が経過していない場合は再起動をスキップ
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastRestartTime < MIN_RESTART_INTERVAL) {
+            Log.d(TAG, "Skipping restart due to minimum interval not met")
+            return START_STICKY
+        }
+        lastRestartTime = currentTime
+
         // 常にSharedPreferencesから最新の設定を読み込む
         val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
         val startTimeStr = prefs.getString(MainActivity.PREF_START_TIME, "22:00") ?: "22:00"
@@ -69,8 +79,10 @@ class ScreenMonitorService : Service() {
             }
             handler?.postDelayed(runnable!!, 1000)
 
-            // サービスの再起動アラームを設定
-            scheduleServiceRestart()
+            // サービスの再起動アラームを設定（ただし、意図的な起動の場合のみ）
+            if (intent?.getBooleanExtra("scheduled_restart", false) == true) {
+                scheduleServiceRestart()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error starting service", e)
             stopSelf()
@@ -81,13 +93,15 @@ class ScreenMonitorService : Service() {
 
     private fun scheduleServiceRestart() {
         val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val startTimeStr = prefs.getString(MainActivity.PREF_START_TIME, "22:00") ?: "22:00"
-        val endTimeStr = prefs.getString(MainActivity.PREF_END_TIME, "06:00") ?: "06:00"
-        val threshold = prefs.getInt(MainActivity.PREF_THRESHOLD, 30)
+        // 監視が有効な場合のみ再起動をスケジュール
+        if (!prefs.getBoolean(MainActivity.PREF_IS_MONITORING_ENABLED, false)) {
+            Log.d(TAG, "Monitoring is disabled, skipping service restart")
+            return
+        }
 
-        Log.d(TAG, "Scheduling service restart with settings: Start=$startTimeStr, End=$endTimeStr, Threshold=$threshold")
-
-        val restartIntent = Intent(this, ScreenMonitorService::class.java)
+        val restartIntent = Intent(this, ScreenMonitorService::class.java).apply {
+            putExtra("scheduled_restart", true)
+        }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val pendingIntent = PendingIntent.getService(
             applicationContext,
@@ -99,11 +113,29 @@ class ScreenMonitorService : Service() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         
         // 1分後に再起動するアラームを設定（アプリがキルされた場合のバックアップ）
-        alarmManager.setExact(
-            AlarmManager.ELAPSED_REALTIME,
-            SystemClock.elapsedRealtime() + 60 * 1000, // 1分後
-            pendingIntent
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME,
+                    SystemClock.elapsedRealtime() + 60 * 1000,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME,
+                    SystemClock.elapsedRealtime() + 60 * 1000,
+                    pendingIntent
+                )
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME,
+                SystemClock.elapsedRealtime() + 60 * 1000,
+                pendingIntent
+            )
+        }
+        
+        Log.d(TAG, "Scheduled service restart for 1 minute later")
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
