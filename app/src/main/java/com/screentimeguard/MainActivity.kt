@@ -25,6 +25,7 @@ import java.util.*
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.app.ActivityManager
 
 class MainActivity : AppCompatActivity() {
     private var isMonitoring = false
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
     private lateinit var prefs: SharedPreferences
     private lateinit var alarmManager: AlarmManager
+    private var serviceIntent: Intent? = null
 
     companion object {
         const val PREF_START_TIME = "start_time"
@@ -45,6 +47,7 @@ class MainActivity : AppCompatActivity() {
         const val DEFAULT_END_TIME = "06:00"
         const val DEFAULT_THRESHOLD = 30
         private const val ALARM_REQUEST_CODE = 1001
+        private const val TAG = "MainActivity"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,17 +65,15 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
         alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
+        // サービスインテントの初期化
+        serviceIntent = Intent(this, ScreenMonitorService::class.java)
+
         // 監視フラグの読み込みと状態の復元
         isMonitoring = prefs.getBoolean(PREF_IS_MONITORING_ENABLED, false)
         updateMonitoringStatus()
 
         // 保存された設定の読み込みとUIの更新
         loadSavedSettings()
-
-        // 監視が有効な場合、アプリ起動時に監視を開始
-        if (isMonitoring) {
-            startMonitoring()
-        }
 
         // ボタンのクリックリスナー設定
         toggleButton.setOnClickListener {
@@ -105,6 +106,24 @@ class MainActivity : AppCompatActivity() {
                 updateServiceIfRunning()
             }
         })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 現在の監視状態を確認し、UIを更新
+        val currentlyRunning = isServiceRunning(ScreenMonitorService::class.java)
+        if (isMonitoring != currentlyRunning) {
+            isMonitoring = currentlyRunning
+            updateMonitoringStatus()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // アクティビティが破棄されても、監視が有効な場合はサービスを継続
+        if (!isMonitoring) {
+            stopMonitoring()
+        }
     }
 
     private fun loadSavedSettings() {
@@ -177,104 +196,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startMonitoring() {
-        val startTime = prefs.getString(PREF_START_TIME, DEFAULT_START_TIME) ?: DEFAULT_START_TIME
-        val endTime = prefs.getString(PREF_END_TIME, DEFAULT_END_TIME) ?: DEFAULT_END_TIME
-        val threshold = thresholdInput.text.toString().toIntOrNull() ?: DEFAULT_THRESHOLD
-
-        Log.d("MainActivity", "Starting monitoring with settings: Start=$startTime, End=$endTime, Threshold=$threshold")
-
-        // サービスの開始
-        val serviceIntent = Intent(this, ScreenMonitorService::class.java).apply {
-            putExtra(PREF_START_TIME, startTime)
-            putExtra(PREF_END_TIME, endTime)
-            putExtra(PREF_THRESHOLD, threshold)
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
-        }
-
-        // 次の監視開始時刻のアラームを設定
-        scheduleNextMonitoring()
-    }
-
-    private fun scheduleNextMonitoring() {
-        val startTime = prefs.getString(PREF_START_TIME, DEFAULT_START_TIME) ?: DEFAULT_START_TIME
-        val (startHour, startMinute) = startTime.split(":").map { it.toInt() }
-
-        // 次の監視開始時刻を計算
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, startHour)
-            set(Calendar.MINUTE, startMinute)
-            set(Calendar.SECOND, 0)
-            
-            // 現在時刻が開始時刻を過ぎている場合は翌日の開始時刻を設定
-            if (timeInMillis <= System.currentTimeMillis()) {
-                add(Calendar.DAY_OF_YEAR, 1)
-            }
-        }
-
-        // アラームの設定
-        val intent = Intent(this, ScreenMonitorService::class.java).apply {
-            putExtra(PREF_START_TIME, startTime)
-            putExtra(PREF_END_TIME, prefs.getString(PREF_END_TIME, DEFAULT_END_TIME))
-            putExtra(PREF_THRESHOLD, thresholdInput.text.toString().toIntOrNull() ?: DEFAULT_THRESHOLD)
-        }
-
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val pendingIntent = PendingIntent.getService(
-            this,
-            ALARM_REQUEST_CODE,
-            intent,
-            flags
-        )
-
-        // 既存のアラームをキャンセル
-        alarmManager.cancel(pendingIntent)
-
-        // 新しいアラームを設定
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12以降
-            if (alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setAlarmClock(
-                    AlarmManager.AlarmClockInfo(calendar.timeInMillis, pendingIntent),
-                    pendingIntent
-                )
+        try {
+            Log.d(TAG, "Starting monitoring service")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
             } else {
-                alarmManager.setRepeating(
-                    AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
-                    AlarmManager.INTERVAL_DAY,
-                    pendingIntent
-                )
+                startService(serviceIntent)
             }
-        } else {
-            // Android 11以前
-            alarmManager.setAlarmClock(
-                AlarmManager.AlarmClockInfo(calendar.timeInMillis, pendingIntent),
-                pendingIntent
-            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting service", e)
+            isMonitoring = false
+            prefs.edit().putBoolean(PREF_IS_MONITORING_ENABLED, false).apply()
+            updateMonitoringStatus()
+            Toast.makeText(this, "サービスの開始に失敗しました", Toast.LENGTH_SHORT).show()
         }
-
-        Log.d("MainActivity", "Scheduled next monitoring at ${calendar.time}, with settings: " +
-            "Start=${prefs.getString(PREF_START_TIME, DEFAULT_START_TIME)}, " +
-            "End=${prefs.getString(PREF_END_TIME, DEFAULT_END_TIME)}")
     }
 
     private fun stopMonitoring() {
-        // サービスの停止
-        stopService(Intent(this, ScreenMonitorService::class.java))
-        
-        // アラームのキャンセル
-        val pendingIntent = PendingIntent.getService(
-            this,
-            ALARM_REQUEST_CODE,
-            Intent(this, ScreenMonitorService::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        alarmManager.cancel(pendingIntent)
+        try {
+            Log.d(TAG, "Stopping monitoring service")
+            stopService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping service", e)
+        }
     }
 
     private fun updateServiceIfRunning() {
@@ -286,5 +230,19 @@ class MainActivity : AppCompatActivity() {
     private fun updateMonitoringStatus() {
         statusText.text = if (isMonitoring) "監視中" else "停止中"
         toggleButton.text = if (isMonitoring) "停止" else "開始"
+    }
+
+    private fun isServiceRunning(serviceClass: Class<*>): Boolean {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        try {
+            for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
+                if (serviceClass.name == service.service.className) {
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking service status", e)
+        }
+        return false
     }
 } 
