@@ -57,8 +57,11 @@
 
 主要な実装部分を紹介します。
 プロジェクト全体は下記に保存しています。
+apkも保存したので、興味ある人は使用してみてください。
 
 - [GitHubリポジトリ](https://github.com/MaruSankakuEngineer/ScreenTimeGuard)
+
+- [apkファイル](https://github.com/MaruSankakuEngineer/ScreenTimeGuard/tree/master/Qiita%E8%A8%98%E4%BA%8B/apk)
 
 
 ### 1. フォアグラウンドサービス
